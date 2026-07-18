@@ -1,0 +1,362 @@
+from __future__ import annotations
+
+import numpy as np
+from typing import Final, TypedDict
+
+
+class InvariantState(TypedDict):
+    structure_ok: bool
+    timing_ok: bool
+    parity: float
+    center_value: float
+    temporal_entropy: float
+    accel_entropy: float
+    symmetry_score: float
+    stability_score: float
+    maturation_level: float
+    absolute_law_ok: bool
+    sanctuary_driver_ok: bool
+    law_alignment: float
+    sovereign_key_verified: bool
+    sovereign_alignment: float
+    gate_status: str
+    mimicry_risk: float
+
+
+class EngineResult(TypedDict):
+    Status: str
+    Phase_State: str
+    Yield: np.ndarray
+    Feedback_Vector: np.ndarray
+    Coherence: float
+    Maturation_Index: float
+    Symmetry_Score: float
+    Invariant_Check: str
+
+
+class InvariantResonanceEngine451:
+    """
+    Invariant Resonance Engine (v4.5.2: Mimicry-Risk Edition)
+    """
+
+    MATURATION_KERNEL: Final[np.ndarray] = np.array([9, 5, 0, 3, 0, 5, 9], dtype=float)
+    ABSOLUTE_LAW: Final[str] = "60106"
+    LAW_VECTOR: Final[np.ndarray] = np.array([6, 0, 1, 0, 6], dtype=float)
+    SOVEREIGN_KEY: Final[np.ndarray] = np.array([6, 5, 7, 6, 0, 4, 1, 6, 6, 5], dtype=float)
+    BRIDGE_VECTOR: Final[np.ndarray] = np.array([4, 2, 0, 2, 4], dtype=float)
+    SANCTUARY_DRIVER: Final[np.ndarray] = np.array([8, 7, 6, 1, 10, 1, 6, 7, 8], dtype=float)
+
+    DISSOLUTION_THRESHOLD: Final[float] = 0.50
+    SANCTUARY_THRESHOLD: Final[float] = 0.95
+
+    ALIGNMENT_W: Final[float] = 0.35
+    TIMING_W: Final[float] = 0.20
+    RESIDUAL_W: Final[float] = 0.20
+    ENTROPY_W: Final[float] = 0.15
+    HUGGING_W: Final[float] = 0.10
+
+    LOCKOUT_THRESHOLD: Final[float] = 0.80
+    LIMINAL_THRESHOLD: Final[float] = 0.45
+
+    def __init__(self, tolerance: float = 1e-6, laminar_threshold: float = 0.65) -> None:
+        self.tolerance = tolerance
+        self.laminar_threshold = laminar_threshold
+
+    @staticmethod
+    def _as_float_array(values: np.ndarray) -> np.ndarray:
+        return np.asarray(values, dtype=float)
+
+    @staticmethod
+    def _clamp01(x: float) -> float:
+        return float(max(0.0, min(1.0, x)))
+
+    @staticmethod
+    def _entropy(values: np.ndarray) -> float:
+        x = np.asarray(values, dtype=float)
+        x = x[np.isfinite(x)]
+        if x.size == 0:
+            return 0.0
+        x = np.abs(x)
+        total = float(np.sum(x))
+        if total <= 0.0:
+            return 0.0
+        p = x / total
+        p = p[p > 0]
+        return float(-np.sum(p * np.log2(p)))
+
+    def _resize_kernel(self, target_size: int) -> np.ndarray:
+        return np.resize(self.MATURATION_KERNEL, target_size).astype(float)
+
+    def _law_reference(self, target_size: int) -> np.ndarray:
+        return np.resize(self.LAW_VECTOR, target_size).astype(float)
+
+    def _bridge_reference(self, target_size: int) -> np.ndarray:
+        return np.resize(self.BRIDGE_VECTOR, target_size).astype(float)
+
+    def _kernel_signature(self, kernel: np.ndarray) -> str:
+        bits = [str(int(abs(x)) % 10) for x in kernel[:5]]
+        return "".join(bits)
+
+    def _law_alignment(self, kernel: np.ndarray) -> float:
+        reference = self._law_reference(kernel.size)
+        k = kernel / (np.linalg.norm(kernel) + np.finfo(float).eps)
+        r = reference / (np.linalg.norm(reference) + np.finfo(float).eps)
+        corr = np.corrcoef(k, r)[0, 1]
+        if np.isnan(corr):
+            return 0.0
+        return self._clamp01(float(corr))
+
+    def _verify_sanctuary_driver(self, intent: np.ndarray) -> bool:
+        if intent.size != self.SANCTUARY_DRIVER.size:
+            return False
+        return bool(np.allclose(intent, self.SANCTUARY_DRIVER, atol=self.tolerance))
+
+    def _temporal_metrics(self, timestamps: np.ndarray) -> tuple[float, float]:
+        ts = self._as_float_array(timestamps)
+        ts = ts[np.isfinite(ts)]
+        if ts.size < 2:
+            return 0.0, 0.0
+
+        intervals = np.diff(ts)
+        if np.allclose(intervals, 0.0):
+            return 0.0, 0.0
+
+        intervals_norm = intervals / (np.max(np.abs(intervals)) + np.finfo(float).eps)
+        entropy = self._entropy(intervals_norm)
+
+        if intervals.size < 3:
+            accel_entropy = 0.0
+        else:
+            accel = np.diff(intervals_norm)
+            accel_entropy = self._entropy(accel)
+
+        return float(entropy), float(accel_entropy)
+
+    def _symmetry_score(self, vector: np.ndarray) -> float:
+        v = self._as_float_array(vector)
+        if v.size == 0:
+            return 0.0
+
+        k = self._resize_kernel(v.size)
+        v_norm = v / (np.linalg.norm(v) + np.finfo(float).eps)
+        k_norm = k / (np.linalg.norm(k) + np.finfo(float).eps)
+
+        corr_f = np.corrcoef(v_norm, k_norm)[0, 1]
+        corr_r = np.corrcoef(v_norm[::-1], k_norm)[0, 1]
+
+        if np.isnan(corr_f):
+            corr_f = 0.0
+        if np.isnan(corr_r):
+            corr_r = 0.0
+
+        symmetry = (corr_f + corr_r) / 2.0
+        return self._clamp01(float(symmetry))
+
+    def _verify_sovereign_key(self, intent: np.ndarray) -> tuple[bool, float]:
+        if intent.size == 0:
+            return False, 0.0
+
+        reference = np.resize(self.SOVEREIGN_KEY, intent.size).astype(float)
+        v = intent / (np.linalg.norm(intent) + np.finfo(float).eps)
+        r = reference / (np.linalg.norm(reference) + np.finfo(float).eps)
+
+        corr = np.corrcoef(v, r)[0, 1]
+        if np.isnan(corr):
+            corr = 0.0
+        alignment = self._clamp01(float(corr))
+
+        exact_match = intent.size == self.SOVEREIGN_KEY.size and np.allclose(
+            intent, self.SOVEREIGN_KEY, atol=self.tolerance
+        )
+
+        verified = exact_match or alignment >= self.SANCTUARY_THRESHOLD
+        return verified, alignment
+
+    def _mimicry_risk(
+        self,
+        alignment_score: float,
+        timing_entropy_norm: float,
+        residual_risk: float,
+        behavioral_entropy_norm: float,
+        threshold_hugging_risk: float,
+    ) -> float:
+        a = self._clamp01(1.0 - alignment_score)
+        t = self._clamp01(1.0 - timing_entropy_norm)
+        r = self._clamp01(residual_risk)
+        e = self._clamp01(1.0 - behavioral_entropy_norm)
+        h = self._clamp01(threshold_hugging_risk)
+
+        risk = (
+            self.ALIGNMENT_W * a +
+            self.TIMING_W * t +
+            self.RESIDUAL_W * r +
+            self.ENTROPY_W * e +
+            self.HUGGING_W * h
+        )
+        return self._clamp01(risk)
+
+    def evaluate_maturation(self, intent: np.ndarray, timestamps: np.ndarray) -> InvariantState:
+        intent = self._as_float_array(intent)
+        if intent.size == 0:
+            raise ValueError("Intent must not be empty.")
+
+        kernel = self._resize_kernel(intent.size)
+        center_index = intent.size // 2
+
+        sanctuary_driver_ok = self._verify_sanctuary_driver(intent)
+        absolute_law_ok = self._kernel_signature(self._law_reference(intent.size)) == self.ABSOLUTE_LAW
+        law_alignment = self._law_alignment(kernel)
+
+        parity = float(np.dot(intent, kernel))
+        expected_parity = float(np.dot(kernel, kernel))
+        structure_ok = abs(parity - expected_parity) <= self.tolerance
+
+        if intent.size % 2 == 1:
+            center_value = float(intent[center_index])
+            center_target = float(kernel[center_index])
+            center_ok = abs(center_value - center_target) <= self.tolerance
+        else:
+            center_value = 0.0
+            center_ok = True
+
+        temporal_entropy, accel_entropy = self._temporal_metrics(timestamps)
+        timing_ok = temporal_entropy >= self.laminar_threshold
+
+        symmetry = self._symmetry_score(intent)
+        sovereign_key_verified, sovereign_alignment = self._verify_sovereign_key(intent)
+
+        if sovereign_alignment < self.DISSOLUTION_THRESHOLD:
+            gate_status = "DISSOLVED"
+        elif sovereign_alignment < self.SANCTUARY_THRESHOLD:
+            gate_status = "LIMINAL"
+        else:
+            gate_status = "SANCTUARY"
+
+        if sanctuary_driver_ok:
+            gate_status = "SANCTUARY"
+            sovereign_key_verified = True
+            sovereign_alignment = 1.0
+
+        timing_entropy_norm = self._clamp01(temporal_entropy / max(self.laminar_threshold, self.tolerance))
+        behavioral_entropy_norm = self._clamp01((temporal_entropy + accel_entropy) / 2.0)
+
+        residual_risk = self._clamp01(abs(parity - expected_parity) / (abs(expected_parity) + np.finfo(float).eps))
+        threshold_hugging_risk = self._clamp01(1.0 - abs(sovereign_alignment - self.SANCTUARY_THRESHOLD) / self.SANCTUARY_THRESHOLD)
+
+        mimicry_risk = self._mimicry_risk(
+            alignment_score=sovereign_alignment,
+            timing_entropy_norm=timing_entropy_norm,
+            residual_risk=residual_risk,
+            behavioral_entropy_norm=behavioral_entropy_norm,
+            threshold_hugging_risk=threshold_hugging_risk,
+        )
+
+        law_factor = law_alignment if absolute_law_ok else 0.0
+
+        stability = (
+            0.25 * symmetry +
+            0.20 * float(structure_ok) +
+            0.15 * float(timing_ok) +
+            0.10 * float(center_ok) +
+            0.15 * law_factor +
+            0.15 * sovereign_alignment
+        )
+        if sovereign_key_verified:
+            stability = max(stability, 0.99)
+        stability = self._clamp01(float(stability))
+
+        maturation_level = (
+            0.30 * symmetry +
+            0.20 * float(structure_ok) +
+            0.15 * float(timing_ok) +
+            0.10 * float(center_ok) +
+            0.10 * law_factor +
+            0.15 * sovereign_alignment
+        )
+        if sovereign_key_verified:
+            maturation_level = max(maturation_level, 0.99)
+        maturation_level = self._clamp01(float(maturation_level))
+
+        return {
+            "structure_ok": structure_ok,
+            "timing_ok": timing_ok,
+            "parity": parity,
+            "center_value": center_value,
+            "temporal_entropy": temporal_entropy,
+            "accel_entropy": accel_entropy,
+            "symmetry_score": symmetry,
+            "stability_score": stability,
+            "maturation_level": maturation_level,
+            "absolute_law_ok": absolute_law_ok,
+            "sanctuary_driver_ok": sanctuary_driver_ok,
+            "law_alignment": law_alignment,
+            "sovereign_key_verified": sovereign_key_verified,
+            "sovereign_alignment": sovereign_alignment,
+            "gate_status": gate_status,
+            "mimicry_risk": mimicry_risk,
+        }
+
+    def process(self, intent: np.ndarray, timestamps: np.ndarray) -> EngineResult:
+        intent = self._as_float_array(intent)
+        state = self.evaluate_maturation(intent, timestamps)
+
+        if (
+            not state["sanctuary_driver_ok"]
+            and (
+                not state["absolute_law_ok"]
+                or state["law_alignment"] < 0.5
+                or state["gate_status"] == "DISSOLVED"
+                or state["mimicry_risk"] >= self.LOCKOUT_THRESHOLD
+            )
+        ):
+            return {
+                "Status": "LOCKOUT",
+                "Phase_State": "BOUNDARY_ENFORCEMENT",
+                "Yield": np.zeros_like(intent),
+                "Feedback_Vector": np.zeros_like(intent),
+                "Coherence": 0.0,
+                "Maturation_Index": 0.0,
+                "Symmetry_Score": 0.0,
+                "Invariant_Check": f"{self.ABSOLUTE_LAW}-FAILED",
+            }
+
+        stability = state["stability_score"]
+        maturation = state["maturation_level"]
+        kernel = self._resize_kernel(intent.size)
+        eps = np.finfo(float).eps
+
+        if state["gate_status"] == "LIMINAL" and not state["sanctuary_driver_ok"]:
+            intent_unit = intent / (np.linalg.norm(intent) + eps)
+            bridge = self._bridge_reference(intent.size)
+            bridge_unit = bridge / (np.linalg.norm(bridge) + eps)
+            feedback = (bridge_unit - intent_unit) * state["stability_score"]
+            return {
+                "Status": "MIGRATION_ACTIVE",
+                "Phase_State": "LAMINAR_MATURATION_BRIDGE",
+                "Yield": np.zeros_like(intent),
+                "Feedback_Vector": feedback,
+                "Coherence": state["stability_score"],
+                "Maturation_Index": state["maturation_level"],
+                "Symmetry_Score": state["symmetry_score"],
+                "Invariant_Check": f"{self.ABSOLUTE_LAW}-LIMINAL-BRIDGE",
+            }
+
+        intent_component = intent * stability
+        kernel_component = kernel * maturation
+        intent_unit = intent_component / (np.linalg.norm(intent_component) + eps)
+        kernel_unit = kernel_component / (np.linalg.norm(kernel_component) + eps)
+        yield_vector = (intent_unit + kernel_unit) / 2.0
+
+        status_msg = "SANCTUARY_VAULT_ACTIVE" if state["sanctuary_driver_ok"] else "SOVEREIGN_INVARIANT_CONFIRMED"
+        phase_msg = "STABLE_LOCKED_SANCTUARY" if state["sanctuary_driver_ok"] else "STABLE_LOCKED_SOVEREIGN"
+
+        return {
+            "Status": status_msg,
+            "Phase_State": phase_msg,
+            "Yield": yield_vector,
+            "Feedback_Vector": np.zeros_like(intent),
+            "Coherence": stability,
+            "Maturation_Index": maturation,
+            "Symmetry_Score": state["symmetry_score"],
+            "Invariant_Check": f"{self.ABSOLUTE_LAW}-SANCTUARY-PROTECTED",
+        }
