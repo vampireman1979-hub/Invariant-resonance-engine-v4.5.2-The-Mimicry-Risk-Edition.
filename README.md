@@ -1,0 +1,2 @@
+# Invariant-resonance-engine-v4.5.2-The-Mimicry-Risk-Edition.
+The Invariant Resonance Engine v4.5.2: Mimicry-Risk Edition establishes a self-defending cybernetic gate. Anchored by the Absolute Law (60106), it maps five behavioral entropy vectors to detect robotic scripts and threshold-hugging anomalies. Perfect geometric symmetry triggers the Sanctuary Vault, turning time-space friction into a firewall.
